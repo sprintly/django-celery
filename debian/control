@@ -8,5 +8,5 @@ Homepage: https://github.com/ask/django-celery/
 
 Package: python-django-celery
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}, python (>= 2.5), python-django (>= 1.2.0)
+Depends: ${shlibs:Depends}, ${misc:Depends}, python (>= 2.5), python-django (>= 1.2.0), python-celery (>= 2.5.1), python-django-picklefield (>= 0.2.0)
 Description: Celery integration for Django.
