@@ -3,7 +3,6 @@ from __future__ import absolute_import
 import os
 import sys
 
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
 import celery
@@ -68,7 +67,11 @@ class CeleryCommand(BaseCommand):
         super(CeleryCommand, self).execute(*args, **options)
 
     def set_broker(self, broker):
-        settings.BROKER_HOST = broker
+        os.environ["CELERY_BROKER_URL"] = broker
+
+    def run_from_argv(self, argv):
+        self.handle_default_options(argv[2:])
+        return super(CeleryCommand, self).run_from_argv(argv)
 
     def handle_default_options(self, argv):
         acc = []
