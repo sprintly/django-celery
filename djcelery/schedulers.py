@@ -17,6 +17,11 @@ from .models import (PeriodicTask, PeriodicTasks,
                      CrontabSchedule, IntervalSchedule)
 from .utils import DATABASE_ERRORS, now
 
+# This scheduler must wake up more frequently than the
+# regular of 5 minutes because it needs to take external
+# changes to the schedule into account.
+DEFAULT_MAX_INTERVAL = 5  # seconds
+
 
 class ModelEntry(ScheduleEntry):
     model_schedules = ((schedules.crontab, CrontabSchedule, "crontab"),
@@ -117,7 +122,9 @@ class DatabaseScheduler(Scheduler):
         self._dirty = set()
         self._finalize = Finalize(self, self.sync, exitpriority=5)
         Scheduler.__init__(self, *args, **kwargs)
-        self.max_interval = 5
+        self.max_interval = (kwargs.get("max_interval")
+                           or self.app.conf.CELERYBEAT_MAX_LOOP_INTERVAL
+                           or DEFAULT_MAX_INTERVAL)
 
     def setup_schedule(self):
         self.install_default_entries(self.schedule)
@@ -164,18 +171,25 @@ class DatabaseScheduler(Scheduler):
     @transaction.commit_manually
     def sync(self):
         self.logger.debug("Writing dirty entries...")
+        _tried = set()
         try:
-            while self._dirty:
-                try:
-                    name = self._dirty.pop()
-                    self.schedule[name].save()
-                except (KeyError, ObjectDoesNotExist):
-                    pass
-        except:
-            transaction.rollback()
-            raise
-        else:
-            transaction.commit()
+            try:
+                while self._dirty:
+                    try:
+                        name = self._dirty.pop()
+                        _tried.add(name)
+                        self.schedule[name].save()
+                    except (KeyError, ObjectDoesNotExist):
+                        pass
+            except:
+                transaction.rollback()
+                raise
+            else:
+                transaction.commit()
+        except DATABASE_ERRORS, exc:
+            # retry later
+            self._dirty |= _tried
+            warn(RuntimeWarning("Database error while sync: %r" % (exc, )))
 
     def update_from_dict(self, dict_):
         s = {}

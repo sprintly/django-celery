@@ -4,6 +4,8 @@ import imp
 import importlib
 import warnings
 
+from datetime import datetime
+
 from celery import signals
 from celery.loaders.base import BaseLoader
 from celery.datastructures import DictAttribute
@@ -35,8 +37,8 @@ class DjangoLoader(BaseLoader):
         # any embedded celerybeat process forks.
         signals.beat_embedded_init.connect(self.close_database)
 
-    def now(self):
-        return now()
+    def now(self, utc=False):
+        return datetime.utcnow() if utc else now()
 
     def read_configuration(self):
         """Load configuration from Django settings."""
@@ -107,6 +109,7 @@ class DjangoLoader(BaseLoader):
         if settings.DEBUG:
             warnings.warn("Using settings.DEBUG leads to a memory leak, never "
                           "use this setting in production environments!")
+        self.import_default_modules()
 
         self.close_database()
         self.close_cache()
